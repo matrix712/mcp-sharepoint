@@ -3,24 +3,36 @@ import axios from 'axios';
 
 /**
 * Retrieve a list of folders from the specified path in SharePoint.
-* @param {string} tenantId - tenant ID
-* @param {string} clientId - application (client) ID
-* @param {string} clientSecret - application secret
+* @param {string} authMode - Authentication mode ("application" or "delegated").
+* @param {string} accessToken - User access token for delegated authentication (required if authMode is "delegated").
+* @param {string} tenantId - tenant ID (required if authMode is "application")
+* @param {string} clientId - application (client) ID (required if authMode is "application")
+* @param {string} clientSecret - application secret (required if authMode is "application")
 * @param {string} siteId - SharePoint site ID
 * @param {string} driveId - SharePoint drive ID
 * @param {string} path - The path in SharePoint to retrieve folders from.
 * @returns {Promise<Array>} - A promise that resolves to an array of folder objects.
 */
-export async function getFolders(tenantId, clientId, clientSecret, siteId, driveId, path) {
+export async function getFolders(authMode, accessToken, tenantId, clientId, clientSecret, siteId, driveId, path) {
+  console.error("--- DEBUG getFolders ---");
+  console.error("authMode", authMode);
+  console.error("accessToken", accessToken ? "****" : null);
   console.error("tenantId", tenantId);
   console.error("clientId", clientId);
   console.error("clientSecret", clientSecret ? "****" : null);
   console.error("siteId", siteId);
   console.error("driveId", driveId);
   console.error("path", path);
+  console.error("------------------------");
+
   try {
-    let url = ""
-    const accessToken = await getAccessToken(tenantId, clientId, clientSecret); // Ottieni il token di accesso
+    let tokenToUse = "";
+    let url = "";
+    if (authMode === "application") {
+      tokenToUse = await getAccessToken(tenantId, clientId, clientSecret); // Ottieni il token di accesso
+    } else if (authMode === "delegated") {
+      tokenToUse = accessToken;
+    }
     if (!path  || path === "/" || path.toLowerCase() === "root") {
       url = `https://graph.microsoft.com/v1.0/sites/${siteId}/drives/${driveId}/root/children?$filter=folder ne null`;
     } else {
@@ -30,7 +42,7 @@ export async function getFolders(tenantId, clientId, clientSecret, siteId, drive
     }
     const response = await axios.get(url, {
       headers: {
-        "Authorization": `Bearer ${accessToken}`,
+        "Authorization": `Bearer ${tokenToUse}`,
         "Content-type": 'application/json',
       },
     });
@@ -44,27 +56,33 @@ export async function getFolders(tenantId, clientId, clientSecret, siteId, drive
 
 /**
  * Create a new folder in SharePoint at the specified path.
- * @param {string} tenantId - tenant ID
- * @param {string} clientId - application (client) ID
- * @param {string} clientSecret - application secret
+ * @param {string} authMode - Authentication mode ("application" or "delegated").
+ * @param {string} accessToken - User access token for delegated authentication (required if authMode is "delegated").
+ * @param {string} tenantId - tenant ID (required if authMode is "application")
+ * @param {string} clientId - application (client) ID (required if authMode is "application")
+ * @param {string} clientSecret - application secret (required if authMode is "application")
  * @param {string} siteId - SharePoint site ID
  * @param {string} driveId - SharePoint drive ID
  * @param {string} path - The parent path where the folder will be created.
  * @param {string} folderName - The name of the new folder to create.
  * @returns {Promise<Object>} - A promise that resolves to the created folder object.
  */
-export async function createFolder(tenantId, clientId, clientSecret, siteId, driveId, path, folderName) {
+export async function createFolder(authMode, accessToken, tenantId, clientId, clientSecret, siteId, driveId, path, folderName) {
   try {
-    const accessToken = await getAccessToken(tenantId, clientId, clientSecret);
+    let tokenToUse = "";
     let url = "";
-    
+    if (authMode === "application") {
+      tokenToUse = await getAccessToken(tenantId, clientId, clientSecret); // Ottieni il token di accesso
+    } else if (authMode === "delegated") {
+      tokenToUse = accessToken;
+    }
     if (!path || path === "/" || path.toLowerCase() === "root") {
       url = `https://graph.microsoft.com/v1.0/sites/${siteId}/drives/${driveId}/root/children`;
     } else {
       const cleanPath = path.replace(/^\/|\/$/g, '');
       url = `https://graph.microsoft.com/v1.0/sites/${siteId}/drives/${driveId}/root:/${cleanPath}:/children`;
     }
-    
+
     const response = await axios.post(
       url,
       {
@@ -74,7 +92,7 @@ export async function createFolder(tenantId, clientId, clientSecret, siteId, dri
       },
       {
         headers: {
-          "Authorization": `Bearer ${accessToken}`,
+          "Authorization": `Bearer ${tokenToUse}`,
           "Content-Type": "application/json",
         },
       }
@@ -89,18 +107,25 @@ export async function createFolder(tenantId, clientId, clientSecret, siteId, dri
 
 /**
  * Delete an empty folder in SharePoint at the specified path.
- * @param {string} tenantId - tenant ID
- * @param {string} clientId - application (client) ID
- * @param {string} clientSecret - application secret
+ * @param {string} authMode - Authentication mode ("application" or "delegated").
+ * @param {string} accessToken - User access token for delegated authentication (required if authMode is "delegated").
+ * @param {string} tenantId - tenant ID (required if authMode is "application")
+ * @param {string} clientId - application (client) ID (required if authMode is "application")
+ * @param {string} clientSecret - application secret (required if authMode is "application")
  * @param {string} siteId - SharePoint site ID
  * @param {string} driveId - SharePoint drive ID
  * @param {string} path - The path of the folder to delete.
  * @returns {Promise<Object>} - A promise that resolves when the folder is deleted.
  */
-export async function deleteFolder(tenantId, clientId, clientSecret, siteId, driveId, path) {
+export async function deleteFolder(authMode, accessToken, tenantId, clientId, clientSecret, siteId, driveId, path) {
   try {
-    const accessToken = await getAccessToken(tenantId, clientId, clientSecret);
-    
+    let tokenToUse = "";
+    if (authMode === "application") {
+      tokenToUse = await getAccessToken(tenantId, clientId, clientSecret);
+    } else if (authMode === "delegated") {
+      tokenToUse = accessToken;
+    }
+
     if (!path || path === "/" || path.toLowerCase() === "root") {
       throw new Error("Cannot delete root folder");
     }
@@ -111,7 +136,7 @@ export async function deleteFolder(tenantId, clientId, clientSecret, siteId, dri
     const checkUrl = `https://graph.microsoft.com/v1.0/sites/${siteId}/drives/${driveId}/root:/${cleanPath}:/children`;
     const checkResponse = await axios.get(checkUrl, {
       headers: {
-        "Authorization": `Bearer ${accessToken}`,
+        "Authorization": `Bearer ${tokenToUse}`,
       },
     });
     
@@ -123,7 +148,7 @@ export async function deleteFolder(tenantId, clientId, clientSecret, siteId, dri
     const deleteUrl = `https://graph.microsoft.com/v1.0/sites/${siteId}/drives/${driveId}/root:/${cleanPath}`;
     await axios.delete(deleteUrl, {
       headers: {
-        "Authorization": `Bearer ${accessToken}`,
+        "Authorization": `Bearer ${tokenToUse}`,
       },
     });
     
@@ -136,35 +161,42 @@ export async function deleteFolder(tenantId, clientId, clientSecret, siteId, dri
 
 /**
  * Get a tree view of the folder structure in SharePoint.
- * @param {string} tenantId - tenant ID
- * @param {string} clientId - application (client) ID
- * @param {string} clientSecret - application secret
+ * @param {string} authMode - Authentication mode ("application" or "delegated").
+ * @param {string} accessToken - User access token for delegated authentication (required if authMode is "delegated").
+ * @param {string} tenantId - tenant ID (required if authMode is "application")
+ * @param {string} clientId - application (client) ID (required if authMode is "application")
+ * @param {string} clientSecret - application secret (required if authMode is "application")
  * @param {string} siteId - SharePoint site ID
  * @param {string} driveId - SharePoint drive ID
  * @param {string} path - The starting path (default: "root").
  * @param {number} maxDepth - Maximum depth to traverse (default: 3).
  * @returns {Promise<Object>} - A promise that resolves to a tree structure.
  */
-export async function getFolderTree(tenantId, clientId, clientSecret, siteId, driveId, path = "root", maxDepth = 3) {
+export async function getFolderTree(authMode, accessToken, tenantId, clientId, clientSecret, siteId, driveId, path = "root", maxDepth = 3) {
   try {
-    const accessToken = await getAccessToken(tenantId, clientId, clientSecret);
-    
+    let tokenToUse = "";
+    if (authMode === "application") {
+      tokenToUse = await getAccessToken(tenantId, clientId, clientSecret);
+    } else if (authMode === "delegated") {
+      tokenToUse = accessToken;
+    }
+
     async function buildTree(currentPath, depth = 0) {
       if (depth >= maxDepth) {
         return null;
       }
       
       let url = "";
-      if (!currentPath || currentPath === "/" || currentPath.toLowerCase() === "root") {
+      const normalizedPath = currentPath ? currentPath.replace(/^\/|\/$/g, '') : "";
+      if (!normalizedPath || normalizedPath === "/" || normalizedPath.toLowerCase() === "root") {
         url = `https://graph.microsoft.com/v1.0/sites/${siteId}/drives/${driveId}/root/children?$filter=folder ne null`;
       } else {
-        const cleanPath = currentPath.replace(/^\/|\/$/g, '');
-        url = `https://graph.microsoft.com/v1.0/sites/${siteId}/drives/${driveId}/root:/${cleanPath}:/children?$filter=folder ne null`;
+        url = `https://graph.microsoft.com/v1.0/sites/${siteId}/drives/${driveId}/root:/${normalizedPath}:/children?$filter=folder ne null`;
       }
       
       const response = await axios.get(url, {
         headers: {
-          "Authorization": `Bearer ${accessToken}`,
+          "Authorization": `Bearer ${tokenToUse}`,
           "Content-Type": "application/json",
         },
       });
@@ -173,9 +205,9 @@ export async function getFolderTree(tenantId, clientId, clientSecret, siteId, dr
       const tree = [];
       
       for (const folder of folders) {
-        const folderPath = currentPath === "root" || !currentPath 
+        const folderPath = normalizedPath.toLowerCase() === "root" || !normalizedPath 
           ? folder.name 
-          : `${currentPath}/${folder.name}`;
+          : `${normalizedPath}/${folder.name}`;
         
         const children = await buildTree(folderPath, depth + 1);
         
@@ -183,7 +215,7 @@ export async function getFolderTree(tenantId, clientId, clientSecret, siteId, dr
           name: folder.name,
           path: folderPath,
           id: folder.id,
-          childCount: folder.folder.childCount,
+          childCount: folder.folder?.childCount || 0,
           children: children || []
         });
       }

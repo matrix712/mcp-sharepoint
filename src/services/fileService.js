@@ -7,19 +7,25 @@ import * as XLSX from 'xlsx';
 
 /**
  * List all documents and their metadata in a specified path in SharePoint.
-* @param {string} tenantId - tenant ID
-* @param {string} clientId - application (client) ID
-* @param {string} clientSecret - application secret
+* @param {string} authMode - Authentication mode ("application" or "delegated").
+* @param {string} accessToken - User access token for delegated authentication (required if authMode is "delegated").
+* @param {string} tenantId - tenant ID (required if authMode is "application")
+* @param {string} clientId - application (client) ID (required if authMode is "application")
+* @param {string} clientSecret - application secret (required if authMode is "application")
 * @param {string} siteId - SharePoint site ID
 * @param {string} driveId - SharePoint drive ID
  * @param {string} path - The path in SharePoint to retrieve documents from.
  * @returns {Promise<Array>} - A promise that resolves to an array of document objects with metadata.
  */
-export async function getDocuments(tenantId, clientId, clientSecret, siteId, driveId, path) {
+export async function getDocuments(authMode, accessToken, tenantId, clientId, clientSecret, siteId, driveId, path) {
   try {
-    const accessToken = await getAccessToken(tenantId, clientId, clientSecret);
+    let tokenToUse = "";
+    if (authMode === "application") {
+      tokenToUse = await getAccessToken(tenantId, clientId, clientSecret);
+    } else if (authMode === "delegated") {
+      tokenToUse = accessToken;
+    }
     let url = "";
-    
     if (!path || path === "/" || path.toLowerCase() === "root") {
       url = `https://graph.microsoft.com/v1.0/sites/${siteId}/drives/${driveId}/root/children`;
     } else {
@@ -29,7 +35,7 @@ export async function getDocuments(tenantId, clientId, clientSecret, siteId, dri
     
     const response = await axios.get(url, {
       headers: {
-        "Authorization": `Bearer ${accessToken}`,
+        "Authorization": `Bearer ${tokenToUse}`,
         "Content-Type": "application/json",
       },
     });
@@ -47,23 +53,31 @@ export async function getDocuments(tenantId, clientId, clientSecret, siteId, dri
 /**
  * Get the content of a document in SharePoint, supporting multiple formats (PDF, Word, Excel).
  * Converts Word and Excel files to PDF automatically and extracts text.
- * @param {string} tenantId - tenant ID
- * @param {string} clientId - application (client) ID
- * @param {string} clientSecret - application secret
+ * @param {string} authMode - Authentication mode ("application" or "delegated").
+ * @param {string} accessToken - User access token for delegated authentication (required if authMode is "delegated").
+ * @param {string} tenantId - tenant ID (required if authMode is "application")
+ * @param {string} clientId - application (client) ID (required if authMode is "application")
+ * @param {string} clientSecret - application secret (required if authMode is "application")
  * @param {string} siteId - SharePoint site ID
  * @param {string} driveId - SharePoint drive ID
  * @param {string} filePath - The path to the file (e.g., "Cartella_1/file.docx").
  * @returns {Promise<Object>} - A promise that resolves to the file content as text and metadata.
  */
-export async function getDocumentContent(tenantId, clientId, clientSecret, siteId, driveId, filePath) {
+export async function getDocumentContent(authMode, accessToken, tenantId, clientId, clientSecret, siteId, driveId, filePath) {
   try {
+    let tokenToUse = "";
+    if (authMode === "application") {
+      tokenToUse = await getAccessToken(tenantId, clientId, clientSecret);
+    } else if (authMode === "delegated") {
+      tokenToUse = accessToken;
+    }
+
     // Limite token per risposta all'agente
     const MAX_TOKENS = 200000;
     const CHARS_PER_TOKEN = 4; // stima approssimativa
     const SAFETY_FACTOR = 0.5
     const ALLOWED_CHARS = Math.floor(MAX_TOKENS * CHARS_PER_TOKEN * SAFETY_FACTOR);
 
-    const accessToken = await getAccessToken(tenantId, clientId, clientSecret);
     const cleanPath = filePath.replace(/^\/|\/$/g, '');
 
     // URL per ottenere i metadati del file
@@ -71,7 +85,7 @@ export async function getDocumentContent(tenantId, clientId, clientSecret, siteI
 
     const metadataResponse = await axios.get(metadataUrl, {
       headers: {
-        "Authorization": `Bearer ${accessToken}`,
+        "Authorization": `Bearer ${tokenToUse}`,
       },
     });
 
@@ -94,7 +108,7 @@ export async function getDocumentContent(tenantId, clientId, clientSecret, siteI
       let downloadUrlXlsx = `https://graph.microsoft.com/v1.0/sites/${siteId}/drives/${driveId}/root:/${cleanPath}:/content`;
       const bufferXlsx = await axios.get(downloadUrlXlsx, {
         headers: {
-          "Authorization": `Bearer ${accessToken}`,
+          "Authorization": `Bearer ${tokenToUse}`,
         },
         responseType: 'arraybuffer'
       });
@@ -139,7 +153,7 @@ export async function getDocumentContent(tenantId, clientId, clientSecret, siteI
 
     const contentResponse = await axios.get(downloadUrl, {
       headers: {
-        "Authorization": `Bearer ${accessToken}`,
+        "Authorization": `Bearer ${tokenToUse}`,
       },
       responseType: 'arraybuffer'
     });
@@ -187,9 +201,11 @@ export async function getDocumentContent(tenantId, clientId, clientSecret, siteI
 
 /**
  * Upload a document to SharePoint (text or binary).
- * @param {string} tenantId - tenant ID
- * @param {string} clientId - application (client) ID
- * @param {string} clientSecret - application secret
+ * @param {string} authMode - Authentication mode ("application" or "delegated").
+ * @param {string} accessToken - User access token for delegated authentication (required if authMode is "delegated").
+ * @param {string} tenantId - tenant ID (required if authMode is "application")
+ * @param {string} clientId - application (client) ID (required if authMode is "application")
+ * @param {string} clientSecret - application secret (required if authMode is "application")
  * @param {string} siteId - SharePoint site ID
  * @param {string} driveId - SharePoint drive ID
  * @param {string} filePath - e.g. "Cartella_1/file.txt"
@@ -198,9 +214,14 @@ export async function getDocumentContent(tenantId, clientId, clientSecret, siteI
  * @param {boolean} overwrite - Whether to overwrite existing files
  * @returns {Promise<Object>}
  */
-export async function uploadDocument(tenantId, clientId, clientSecret, siteId, driveId, filePath, content, contentType = 'application/octet-stream', overwrite = false) {
+export async function uploadDocument(authMode, accessToken, tenantId, clientId, clientSecret, siteId, driveId, filePath, content, contentType = 'application/octet-stream', overwrite = false) {
   try {
-    const accessToken = await getAccessToken(tenantId, clientId, clientSecret);
+    let tokenToUse = "";
+    if (authMode === "application") {
+      tokenToUse = await getAccessToken(tenantId, clientId, clientSecret);
+    } else if (authMode === "delegated") {
+      tokenToUse = accessToken;
+    }
     const cleanPath = filePath.replace(/^\/|\/$/g, '');
     
     const isBinary = contentType && !contentType.startsWith('text/');
@@ -215,7 +236,7 @@ export async function uploadDocument(tenantId, clientId, clientSecret, siteId, d
     
     const response = await axios.put(uploadUrl, buffer, {
       headers: {
-        Authorization: `Bearer ${accessToken}`,
+        Authorization: `Bearer ${tokenToUse}`,
         'Content-Type': contentType,
         'Content-Length': buffer.length
       },
@@ -242,9 +263,11 @@ export async function uploadDocument(tenantId, clientId, clientSecret, siteId, d
  * Update the content of an existing document in SharePoint. Replaces the entire content.
  * Fails if the document does not already exist.
  *
- * @param {string} tenantId - tenant ID
- * @param {string} clientId - application (client) ID
- * @param {string} clientSecret - application secret
+ * @param {string} authMode - Authentication mode ("application" or "delegated").
+ * @param {string} accessToken - User access token for delegated authentication (required if authMode is "delegated").
+ * @param {string} tenantId - tenant ID (required if authMode is "application")
+ * @param {string} clientId - application (client) ID (required if authMode is "application")
+ * @param {string} clientSecret - application secret (required if authMode is "application")
  * @param {string} siteId - SharePoint site ID
  * @param {string} driveId - SharePoint drive ID
  * @param {string} filePath - e.g. "Cartella_1/file.txt"
@@ -253,6 +276,8 @@ export async function uploadDocument(tenantId, clientId, clientSecret, siteId, d
  * @returns {Promise<Object>}
  */
 export async function updateDocumentContent(
+  authMode,
+  accessToken,
   tenantId,
   clientId,
   clientSecret,
@@ -263,7 +288,12 @@ export async function updateDocumentContent(
   contentType = 'application/octet-stream'
 ) {
   try {
-    const accessToken = await getAccessToken(tenantId, clientId, clientSecret);
+    let tokenToUse = "";
+    if (authMode === "application") {
+      tokenToUse = await getAccessToken(tenantId, clientId, clientSecret);
+    } else if (authMode === "delegated") {
+      tokenToUse = accessToken;
+    }
     const cleanPath = filePath.replace(/^\/|\/$/g, '');
 
     // Determina se è binario dal contentType
@@ -278,7 +308,7 @@ export async function updateDocumentContent(
 
     const response = await axios.put(updateUrl, buffer, {
       headers: {
-        Authorization: `Bearer ${accessToken}`,
+        Authorization: `Bearer ${tokenToUse}`,
         'Content-Type': contentType,
         'Content-Length': buffer.length
       },
@@ -309,23 +339,30 @@ export async function updateDocumentContent(
  * Delete a document from SharePoint by path.
  * Fails if the document does not exist.
  *
- * @param {string} tenantId - tenant ID
- * @param {string} clientId - application (client) ID
- * @param {string} clientSecret - application secret
+ * @param {string} authMode - Authentication mode ("application" or "delegated").
+ * @param {string} accessToken - User access token for delegated authentication (required if authMode is "delegated").
+ * @param {string} tenantId - tenant ID (required if authMode is "application")
+ * @param {string} clientId - application (client) ID (required if authMode is "application")
+ * @param {string} clientSecret - application secret (required if authMode is "application")
  * @param {string} siteId - SharePoint site ID
  * @param {string} driveId - SharePoint drive ID
  * @param {string} filePath - e.g. "Cartella_1/file.txt"
  * @returns {Promise<{deleted: boolean, path: string}>}
  */
-export async function deleteDocument(tenantId, clientId, clientSecret, siteId, driveId, filePath) {
+export async function deleteDocument(authMode, accessToken, tenantId, clientId, clientSecret, siteId, driveId, filePath) {
   try {
-    const accessToken = await getAccessToken(tenantId, clientId, clientSecret);
+    let tokenToUse = "";
+    if (authMode === "application") {
+      tokenToUse = await getAccessToken(tenantId, clientId, clientSecret);
+    } else if (authMode === "delegated") {
+      tokenToUse = accessToken;
+    }
     const cleanPath = filePath.replace(/^\/|\/$/g, '');   
     const deleteUrl = `https://graph.microsoft.com/v1.0/sites/${siteId}/drives/${driveId}/root:/${cleanPath}`;    
 
     await axios.delete(deleteUrl, {
       headers: {
-        Authorization: `Bearer ${accessToken}`
+        Authorization: `Bearer ${tokenToUse}`,
       }
     });
 
@@ -349,19 +386,26 @@ export async function deleteDocument(tenantId, clientId, clientSecret, siteId, d
 
 /**
  * Search for documents in Sharepoint containing the specified keywords in the specified attribute.
- * @param {string} tenantId - tenant ID
- * @param {string} clientId - application (client) ID
- * @param {string} clientSecret - application secret
+ * @param {string} authMode - Authentication mode ("application" or "delegated").
+ * @param {string} accessToken - User access token for delegated authentication (required if authMode is "delegated").
+ * @param {string} tenantId - tenant ID (required if authMode is "application")
+ * @param {string} clientId - application (client) ID (required if authMode is "application")
+ * @param {string} clientSecret - application secret (required if authMode is "application")
  * @param {string} siteId - SharePoint site ID
  * @param {string} listId - The ID of the SharePoint list to search in.
  * @param {string[]} keywords - An array of keywords to search for.
  * @param {string} attributeName - The attribute name to search in (e.g., "name", "fileType").
  * @returns {Promise<Array>} - A promise that resolves to an array of matching document objects.
  */
-export async function searchDocumentsByKeywords(tenantId, clientId, clientSecret, siteId, listId, keywords, attributeName) {
+export async function searchDocumentsByKeywords(authMode, accessToken, tenantId, clientId, clientSecret, siteId, listId, keywords, attributeName) {
   try {
-    const accessToken = await getAccessToken(tenantId, clientId, clientSecret);
-    
+    let tokenToUse = "";
+    if (authMode === "application") {
+      tokenToUse = await getAccessToken(tenantId, clientId, clientSecret);
+    } else if (authMode === "delegated") {
+      tokenToUse = accessToken;
+    }
+
     let allItems = [];
     let nextLink = `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items?$expand=fields,driveItem&$select=id,fields,driveItem`;
 
@@ -369,7 +413,7 @@ export async function searchDocumentsByKeywords(tenantId, clientId, clientSecret
     while (nextLink) {
       const response = await axios.get(nextLink, {
         headers: {
-          "Authorization": `Bearer ${accessToken}`,
+          "Authorization": `Bearer ${tokenToUse}`,
           "Content-Type": "application/json",
         },
       });
