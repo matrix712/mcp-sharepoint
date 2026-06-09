@@ -15,7 +15,8 @@ The server allows an agent to:
 
 ### 📁 Folder management
 
-A path can/must be passed as an argument
+A path can/must be passed as an argument  
+For Windows users, always use forward slashes `/`
 
 * List folders
 * Create new folder
@@ -24,7 +25,8 @@ A path can/must be passed as an argument
 
 ### 📄 Document management
 
-A path can/must be passed as an argument
+A path can/must be passed as an argument  
+For Windows users, always use forward slashes `/`
 
 * List documents
 * Read document content (PDF, Word, Excel, PowerPoint)
@@ -38,9 +40,9 @@ A path can/must be passed as an argument
 
 * Node.js
 * A Microsoft 365 tenant
-* An app registered in **Microsoft Entra ID** with Graph permissions
+* An app registered in **Microsoft Entra ID** with Graph permissions and/or active users with configured permissions
 
-### Recommended Graph permissions
+### Recommended Graph permissions for app
 
 ```
 Sites.Read.All
@@ -49,17 +51,17 @@ Files.Read.All
 Files.ReadWrite.All
 ```
 
-> ⚠️ Use **Application permissions**
+> ⚠️ Both **Application permissions** and **Delegated permissions** are supported
 
 ---
 
-* Authentication through **Microsoft Entra ID App Registration**
+* The agent must send the **authMode** variable to tell the mcp-server to use the Applicazion permissions or the Delegated permissions
 * All operations are performed via **Microsoft Graph**
 
 ---
 
 ## 🧭 Step by step guide to register an app
-### if you already have an app registered you can skip this part
+### if you already have an app registered, you can skip this part
 1. Go to your Microsoft Entra website `https://entra.microsoft.com/...`  
 2. Click on the left menu on "app registration"  
 3. Click on "New registration"
@@ -73,7 +75,7 @@ Files.ReadWrite.All
 4. On the second left menu click on "API authorizations"  
 5. Click on "Add authorization"  
 6. Click on "Microsoft Graph"  
-7. Click on "Application authorization"  
+7. Click on "Application authorization" or "Delegated authorization"
 8. If this is your first time, or you are not familiar with authorizations, type in the search bar "sites"  
 9. Select "Sites.FullControl.All" and select "Add authorizations"  
 > ⚠️This authorization gives full control to the app, it is recommended to use the least privilege authorization needed
@@ -81,6 +83,7 @@ Files.ReadWrite.All
  
 ## 🧭 Step by step guide to obtain the parameters for sharepoint
 ### if you already know the client_id, client_secret, tenant_id, site_id, drive_id, list_id, you can skip this part
+### client_id, client_secret, tenant_id are needed only for the Application permissions
 1. On Microsoft Entra website `https://entra.microsoft.com/`, on the left menu click on "app registration"
 2. Click on you registered app in the table
 3. On top infos you can see the **client id** and **tenant id** as ID application (client) and ID directory (tenant)
@@ -134,16 +137,30 @@ The response is a json, the attribute "value" is an array of json, each json is 
 
 # ⚙️ Configuration
 
-The authorization is obtained using **app variables**.
-These variables must be provided in every call.
+The authorization is obtained using **app variables** for the Application permission, or **access token** for the Delegated permission.  
+**Application permissions** handle every request in the same way, referring to the permissions set on Microsoft Entra ID.  
+**Delegated permissions** refer to the permissions associated with the user that is asking the agent to make the request, identified with a login.  
+These variables must be provided in every request.
 
-### Required app variables
+### Required auth variable
+
+| Variable      | Description                              |
+| ------------- | ---------------------------------------- |
+| `authMode`    | "application" or "delegated"             |
+
+### Required app variables if authMode=application
 
 | Variable      | Description                              |
 | ------------- | ---------------------------------------- |
 | `tenantId`    | Microsoft Entra directory tenant ID      |
 | `clientId`    | Microsoft Entra app client ID            |
 | `clientSecret`| Microsoft Entra client secret            |
+
+### Required delegated variable if authMode=delegated
+
+| Variable      | Description                              |
+| ------------- | ---------------------------------------- |
+| `accessToken` | User token after the login               |
 
 Other common variables needed.
 These depends on the Sharepoint you are using.
@@ -167,45 +184,59 @@ List folders in a given path.
 **Input**:
 ```
 {
-  "name": "clientId",
+  "name": "authMode",
   "type": "string",
   "required": "true",
-  "descrciption": "The application (client) ID",
+  "description": "auth mode to use",
+  "example": "application" || "delegated"
+},
+{
+  "name": "accessToken",
+  "type": "string",
+  "required": "false (true if authMode=delegated)",
+  "description": "access token of user login",
+  "example": "eyJ0eXAiOiJKV1Q..."
+},
+{
+  "name": "clientId",
+  "type": "string",
+  "required": "false (true if authMode=application)",
+  "description": "The application (client) ID",
   "example": "ab12cd34-e5f6-g7h8-i9j9-ab12cd34e5f6"
 },
 {
   "name": "clientSecret",
   "type": "string",
-  "required": "true",
-  "descrciption": "The client secret",
+  "required": "false (true if authMode=application)",
+  "description": "The client secret",
   "example": "1~A1B~aB12Cd34E5f6aB12cd34E5f6ab~d37cD37"
 },
 {
   "name": "tenantId",
   "type": "string",
-  "required": "true",
-  "descrciption": "The directory (tenant) ID",
+  "required": "false (true if authMode=application)",
+  "description": "The directory (tenant) ID",
   "example": "ab12cd34-e5f6-g7h8-i9j9-ab12cd34e5f6"
 },
 {
   "name": "siteId",
   "type": "string",
   "required": "true",
-  "descrciption": "The ID of the SharePoint site",
+  "description": "The ID of the SharePoint site",
   "example": "namexyz.sharepoint.com,ab12cd34-e5f6-g7h8-i9j9-ab12cd34e5f6,fb12cd34-e5f6-g7h8-i9j9-ab12cd34e5f9"
 },
 {
   "name": "driveId",
   "type": "string",
   "required": "true",
-  "descrciption":" The ID of the drive within the SharePoint site",
+  "description":" The ID of the drive within the SharePoint site",
   "example": "f!aB12Cd34E5f6aB12cd34E5f6abd37cD37aB12Cd34E5f6aB12cd34E5f6abd3712"
 },
 {
   "name": "path",
   "type": "string",
   "required": "true",
-  "descrciption": "The path in SharePoint to retrieve folders from",
+  "description": "The path in SharePoint to retrieve folders from",
   "example": "cartella_1/cartella_2"
 }
 ```
@@ -219,52 +250,66 @@ Create a new folder.
 **Input**:
 ```
 {
-  "name": "clientId",
+  "name": "authMode",
   "type": "string",
   "required": "true",
-  "descrciption": "The application (client) ID",
+  "description": "auth mode to use",
+  "example": "application" || "delegated"
+},
+{
+  "name": "accessToken",
+  "type": "string",
+  "required": "false (true if authMode=delegated)",
+  "description": "access token of user login",
+  "example": "eyJ0eXAiOiJKV1Q..."
+},
+{
+  "name": "clientId",
+  "type": "string",
+  "required": "false (true if authMode=application)",
+  "description": "The application (client) ID",
   "example": "ab12cd34-e5f6-g7h8-i9j9-ab12cd34e5f6"
 },
 {
   "name": "clientSecret",
   "type": "string",
-  "required": "true",
-  "descrciption": "The client secret",
+  "required": "false (true if authMode=application)",
+  "description": "The client secret",
   "example": "1~A1B~aB12Cd34E5f6aB12cd34E5f6ab~d37cD37"
 },
 {
   "name": "tenantId",
   "type": "string",
-  "required": "true",
-  "descrciption": "The directory (tenant) ID",
+  "required": "false (true if authMode=application)",
+  "description": "The directory (tenant) ID",
   "example": "ab12cd34-e5f6-g7h8-i9j9-ab12cd34e5f6"
 },
 {
   "name": "siteId",
   "type": "string",
   "required": "true",
-  "descrciption": "The ID of the SharePoint site",
+  "description": "The ID of the SharePoint site",
   "example": "namexyz.sharepoint.com,ab12cd34-e5f6-g7h8-i9j9-ab12cd34e5f6,fb12cd34-e5f6-g7h8-i9j9-ab12cd34e5f9"
 },
 {
   "name": "driveId",
   "type": "string",
   "required": "true",
-  "descrciption":" The ID of the drive within the SharePoint site",
+  "description":" The ID of the drive within the SharePoint site",
   "example": "f!aB12Cd34E5f6aB12cd34E5f6abd37cD37aB12Cd34E5f6aB12cd34E5f6abd3712"
 },
 {
   "name": "path",
   "type": "string",
   "required": "true",
-  "descrciption": "The parent path where the folder will be created",
+  "description": "The parent path where the folder will be created",
   "example": "cartella_1/cartella_2"
 },
 {
   "name": "folderName",
   "type": "string",
   "required": "true",
-  "descrciption": "The name of the new folder to create",
+  "description": "The name of the new folder to create",
   "example": "cartella_3"
 }
 ```
@@ -277,45 +322,59 @@ Delete a folder **only if it is empty**.
 **Input**:
 ```
 {
-  "name": "clientId",
+  "name": "authMode",
   "type": "string",
   "required": "true",
-  "descrciption": "The application (client) ID",
+  "description": "auth mode to use",
+  "example": "application" || "delegated"
+},
+{
+  "name": "accessToken",
+  "type": "string",
+  "required": "false (true if authMode=delegated)",
+  "description": "access token of user login",
+  "example": "eyJ0eXAiOiJKV1Q..."
+},
+{
+  "name": "clientId",
+  "type": "string",
+  "required": "false (true if authMode=application)",
+  "description": "The application (client) ID",
   "example": "ab12cd34-e5f6-g7h8-i9j9-ab12cd34e5f6"
 },
 {
   "name": "clientSecret",
   "type": "string",
-  "required": "true",
-  "descrciption": "The client secret",
+  "required": "false (true if authMode=application)",
+  "description": "The client secret",
   "example": "1~A1B~aB12Cd34E5f6aB12cd34E5f6ab~d37cD37"
 },
 {
   "name": "tenantId",
   "type": "string",
-  "required": "true",
-  "descrciption": "The directory (tenant) ID",
+  "required": "false (true if authMode=application)",
+  "description": "The directory (tenant) ID",
   "example": "ab12cd34-e5f6-g7h8-i9j9-ab12cd34e5f6"
 },
 {
   "name": "siteId",
   "type": "string",
   "required": "true",
-  "descrciption": "The ID of the SharePoint site",
+  "description": "The ID of the SharePoint site",
   "example": "namexyz.sharepoint.com,ab12cd34-e5f6-g7h8-i9j9-ab12cd34e5f6,fb12cd34-e5f6-g7h8-i9j9-ab12cd34e5f9"
 },
 {
   "name": "driveId",
   "type": "string",
   "required": "true",
-  "descrciption":" The ID of the drive within the SharePoint site",
+  "description":" The ID of the drive within the SharePoint site",
   "example": "f!aB12Cd34E5f6aB12cd34E5f6abd37cD37aB12Cd34E5f6aB12cd34E5f6abd3712"
 },
 {
   "name": "path",
   "type": "string",
   "required": "true",
-  "descrciption": "The path to the folder to delete",
+  "description": "The path to the folder to delete",
   "example": "cartella_1/cartella_2/cartella_3"
 }
 ```
@@ -328,52 +387,66 @@ Retrieve the folder tree structure.
 **Input**:
 ```
 {
-  "name": "clientId",
+  "name": "authMode",
   "type": "string",
   "required": "true",
-  "descrciption": "The application (client) ID",
+  "description": "auth mode to use",
+  "example": "application" || "delegated"
+},
+{
+  "name": "accessToken",
+  "type": "string",
+  "required": "false (true if authMode=delegated)",
+  "description": "access token of user login",
+  "example": "eyJ0eXAiOiJKV1Q..."
+},
+{
+  "name": "clientId",
+  "type": "string",
+  "required": "false (true if authMode=application)",
+  "description": "The application (client) ID",
   "example": "ab12cd34-e5f6-g7h8-i9j9-ab12cd34e5f6"
 },
 {
   "name": "clientSecret",
   "type": "string",
-  "required": "true",
-  "descrciption": "The client secret",
+  "required": "false (true if authMode=application)",
+  "description": "The client secret",
   "example": "1~A1B~aB12Cd34E5f6aB12cd34E5f6ab~d37cD37"
 },
 {
   "name": "tenantId",
   "type": "string",
-  "required": "true",
-  "descrciption": "The directory (tenant) ID",
+  "required": "false (true if authMode=application)",
+  "description": "The directory (tenant) ID",
   "example": "ab12cd34-e5f6-g7h8-i9j9-ab12cd34e5f6"
 },
 {
   "name": "siteId",
   "type": "string",
   "required": "true",
-  "descrciption": "The ID of the SharePoint site",
+  "description": "The ID of the SharePoint site",
   "example": "namexyz.sharepoint.com,ab12cd34-e5f6-g7h8-i9j9-ab12cd34e5f6,fb12cd34-e5f6-g7h8-i9j9-ab12cd34e5f9"
 },
 {
   "name": "driveId",
   "type": "string",
   "required": "true",
-  "descrciption":" The ID of the drive within the SharePoint site",
+  "description":" The ID of the drive within the SharePoint site",
   "example": "f!aB12Cd34E5f6aB12cd34E5f6abd37cD37aB12Cd34E5f6aB12cd34E5f6abd3712"
 },
 {
   "name": "path",
   "type": "string",
   "required": "false",
-  "descrciption": "The starting path (default: 'root')",
+  "description": "The starting path (default: 'root')",
   "example": "cartella_1/cartella_2"
 },
 {
   "name": "maxDepth",
   "type": "number",
   "required": "false",
-  "descrciption": "Maximum depth to traverse (default: 3)",
+  "description": "Maximum depth to traverse (default: 3)",
   "example": 5
 }
 ```
@@ -388,45 +461,59 @@ List documents in a folder.
 **Input**:
 ```
 {
-  "name": "clientId",
+  "name": "authMode",
   "type": "string",
   "required": "true",
-  "descrciption": "The application (client) ID",
+  "description": "auth mode to use",
+  "example": "application" || "delegated"
+},
+{
+  "name": "accessToken",
+  "type": "string",
+  "required": "false (true if authMode=delegated)",
+  "description": "access token of user login",
+  "example": "eyJ0eXAiOiJKV1Q..."
+},
+{
+  "name": "clientId",
+  "type": "string",
+  "required": "false (true if authMode=application)",
+  "description": "The application (client) ID",
   "example": "ab12cd34-e5f6-g7h8-i9j9-ab12cd34e5f6"
 },
 {
   "name": "clientSecret",
   "type": "string",
-  "required": "true",
-  "descrciption": "The client secret",
+  "required": "false (true if authMode=application)",
+  "description": "The client secret",
   "example": "1~A1B~aB12Cd34E5f6aB12cd34E5f6ab~d37cD37"
 },
 {
   "name": "tenantId",
   "type": "string",
-  "required": "true",
-  "descrciption": "The directory (tenant) ID",
+  "required": "false (true if authMode=application)",
+  "description": "The directory (tenant) ID",
   "example": "ab12cd34-e5f6-g7h8-i9j9-ab12cd34e5f6"
 },
 {
   "name": "siteId",
   "type": "string",
   "required": "true",
-  "descrciption": "The ID of the SharePoint site",
+  "description": "The ID of the SharePoint site",
   "example": "namexyz.sharepoint.com,ab12cd34-e5f6-g7h8-i9j9-ab12cd34e5f6,fb12cd34-e5f6-g7h8-i9j9-ab12cd34e5f9"
 },
 {
   "name": "driveId",
   "type": "string",
   "required": "true",
-  "descrciption":" The ID of the drive within the SharePoint site",
+  "description":" The ID of the drive within the SharePoint site",
   "example": "f!aB12Cd34E5f6aB12cd34E5f6abd37cD37aB12Cd34E5f6aB12cd34E5f6abd3712"
 },
 {
   "name": "path",
   "type": "string",
   "required": "true",
-  "descrciption": "The path in SharePoint to retrieve documents from",
+  "description": "The path in SharePoint to retrieve documents from",
   "example": "cartella_1/cartella_2"
 }
 ```
@@ -444,45 +531,59 @@ Supported formats:
 **Input**:
 ```
 {
-  "name": "clientId",
+  "name": "authMode",
   "type": "string",
   "required": "true",
-  "descrciption": "The application (client) ID",
+  "description": "auth mode to use",
+  "example": "application" || "delegated"
+},
+{
+  "name": "accessToken",
+  "type": "string",
+  "required": "false (true if authMode=delegated)",
+  "description": "access token of user login",
+  "example": "eyJ0eXAiOiJKV1Q..."
+},
+{
+  "name": "clientId",
+  "type": "string",
+  "required": "false (true if authMode=application)",
+  "description": "The application (client) ID",
   "example": "ab12cd34-e5f6-g7h8-i9j9-ab12cd34e5f6"
 },
 {
   "name": "clientSecret",
   "type": "string",
-  "required": "true",
-  "descrciption": "The client secret",
+  "required": "false (true if authMode=application)",
+  "description": "The client secret",
   "example": "1~A1B~aB12Cd34E5f6aB12cd34E5f6ab~d37cD37"
 },
 {
   "name": "tenantId",
   "type": "string",
-  "required": "true",
-  "descrciption": "The directory (tenant) ID",
+  "required": "false (true if authMode=application)",
+  "description": "The directory (tenant) ID",
   "example": "ab12cd34-e5f6-g7h8-i9j9-ab12cd34e5f6"
 },
 {
   "name": "siteId",
   "type": "string",
   "required": "true",
-  "descrciption": "The ID of the SharePoint site",
+  "description": "The ID of the SharePoint site",
   "example": "namexyz.sharepoint.com,ab12cd34-e5f6-g7h8-i9j9-ab12cd34e5f6,fb12cd34-e5f6-g7h8-i9j9-ab12cd34e5f9"
 },
 {
   "name": "driveId",
   "type": "string",
   "required": "true",
-  "descrciption":" The ID of the drive within the SharePoint site",
+  "description":" The ID of the drive within the SharePoint site",
   "example": "f!aB12Cd34E5f6aB12cd34E5f6abd37cD37aB12Cd34E5f6aB12cd34E5f6abd3712"
 },
 {
   "name": "filePath",
   "type": "string",
   "required": "true",
-  "descrciption": "The path to the file",
+  "description": "The path to the file",
   "example": "cartella_1/cartella_2/file.txt"
 }
 ```
@@ -495,66 +596,80 @@ Upload a new document.
 **Input**:
 ```
 {
-  "name": "clientId",
+  "name": "authMode",
   "type": "string",
   "required": "true",
-  "descrciption": "The application (client) ID",
+  "description": "auth mode to use",
+  "example": "application" || "delegated"
+},
+{
+  "name": "accessToken",
+  "type": "string",
+  "required": "false (true if authMode=delegated)",
+  "description": "access token of user login",
+  "example": "eyJ0eXAiOiJKV1Q..."
+},
+{
+  "name": "clientId",
+  "type": "string",
+  "required": "false (true if authMode=application)",
+  "description": "The application (client) ID",
   "example": "ab12cd34-e5f6-g7h8-i9j9-ab12cd34e5f6"
 },
 {
   "name": "clientSecret",
   "type": "string",
-  "required": "true",
-  "descrciption": "The client secret",
+  "required": "false (true if authMode=application)",
+  "description": "The client secret",
   "example": "1~A1B~aB12Cd34E5f6aB12cd34E5f6ab~d37cD37"
 },
 {
   "name": "tenantId",
   "type": "string",
-  "required": "true",
-  "descrciption": "The directory (tenant) ID",
+  "required": "false (true if authMode=application)",
+  "description": "The directory (tenant) ID",
   "example": "ab12cd34-e5f6-g7h8-i9j9-ab12cd34e5f6"
 },
 {
   "name": "siteId",
   "type": "string",
   "required": "true",
-  "descrciption": "The ID of the SharePoint site",
+  "description": "The ID of the SharePoint site",
   "example": "namexyz.sharepoint.com,ab12cd34-e5f6-g7h8-i9j9-ab12cd34e5f6,fb12cd34-e5f6-g7h8-i9j9-ab12cd34e5f9"
 },
 {
   "name": "driveId",
   "type": "string",
   "required": "true",
-  "descrciption":" The ID of the drive within the SharePoint site",
+  "description":" The ID of the drive within the SharePoint site",
   "example": "f!aB12Cd34E5f6aB12cd34E5f6abd37cD37aB12Cd34E5f6aB12cd34E5f6abd3712"
 },
 {
   "name": "filePath",
   "type": "string",
   "required": "true",
-  "descrciption": "The path where the file will be uploaded",
+  "description": "The path where the file will be uploaded",
   "example": "cartella_1/cartella_2"
 },
 {
   "name": "content",
   "type": "string",
   "required": "true",
-  "descrciption": "The string or base64-encoded content of the file to upload",
+  "description": "The string or base64-encoded content of the file to upload",
   "example": "Questo è il testo del doc .txt"
 },
 {
   "name": "contentType",
   "type": "string",
   "required": "false",
-  "descrciption": "The MIME type of the content (default: 'application/octet-stream')",
+  "description": "The MIME type of the content (default: 'application/octet-stream')",
   "example": "application/octet-stream"
 },
 {
   "name": "overwrite",
   "type": "boolean",
   "required": "false",
-  "descrciption": "Whether to overwrite existing files (default: false)",
+  "description": "Whether to overwrite existing files (default: false)",
   "example": true
 }
 ```
@@ -571,59 +686,73 @@ Fully update an existing document.
 **Input**:
 ```
 {
-  "name": "clientId",
+  "name": "authMode",
   "type": "string",
   "required": "true",
-  "descrciption": "The application (client) ID",
+  "description": "auth mode to use",
+  "example": "application" || "delegated"
+},
+{
+  "name": "accessToken",
+  "type": "string",
+  "required": "false (true if authMode=delegated)",
+  "description": "access token of user login",
+  "example": "eyJ0eXAiOiJKV1Q..."
+},
+{
+  "name": "clientId",
+  "type": "string",
+  "required": "false (true if authMode=application)",
+  "description": "The application (client) ID",
   "example": "ab12cd34-e5f6-g7h8-i9j9-ab12cd34e5f6"
 },
 {
   "name": "clientSecret",
   "type": "string",
-  "required": "true",
-  "descrciption": "The client secret",
+  "required": "false (true if authMode=application)",
+  "description": "The client secret",
   "example": "1~A1B~aB12Cd34E5f6aB12cd34E5f6ab~d37cD37"
 },
 {
   "name": "tenantId",
   "type": "string",
-  "required": "true",
-  "descrciption": "The directory (tenant) ID",
+  "required": "false (true if authMode=application)",
+  "description": "The directory (tenant) ID",
   "example": "ab12cd34-e5f6-g7h8-i9j9-ab12cd34e5f6"
 },
 {
   "name": "siteId",
   "type": "string",
   "required": "true",
-  "descrciption": "The ID of the SharePoint site",
+  "description": "The ID of the SharePoint site",
   "example": "namexyz.sharepoint.com,ab12cd34-e5f6-g7h8-i9j9-ab12cd34e5f6,fb12cd34-e5f6-g7h8-i9j9-ab12cd34e5f9"
 },
 {
   "name": "driveId",
   "type": "string",
   "required": "true",
-  "descrciption":" The ID of the drive within the SharePoint site",
+  "description":" The ID of the drive within the SharePoint site",
   "example": "f!aB12Cd34E5f6aB12cd34E5f6abd37cD37aB12Cd34E5f6aB12cd34E5f6abd3712"
 },
 {
   "name": "filePath",
   "type": "string",
   "required": "true",
-  "descrciption": "The path to the existing file to update",
+  "description": "The path to the existing file to update",
   "example": "cartella_1/cartella_2"
 },
 {
   "name": "content",
   "type": "string",
   "required": "true",
-  "descrciption": "The new string or base64-encoded content of the file",
+  "description": "The new string or base64-encoded content of the file",
   "example": "Questo è il nuovo testo del doc .txt"
 },
 {
   "name": "contentType",
   "type": "string",
   "required": "false",
-  "descrciption": "The MIME type of the content (default: 'application/octet-stream')",
+  "description": "The MIME type of the content (default: 'application/octet-stream')",
   "example": "application/pdf"
 }
 ```
@@ -636,45 +765,59 @@ Delete a document (moved to the SharePoint recycle bin).
 **Input**:
 ```
 {
-  "name": "clientId",
+  "name": "authMode",
   "type": "string",
   "required": "true",
-  "descrciption": "The application (client) ID",
+  "description": "auth mode to use",
+  "example": "application" || "delegated"
+},
+{
+  "name": "accessToken",
+  "type": "string",
+  "required": "false (true if authMode=delegated)",
+  "description": "access token of user login",
+  "example": "eyJ0eXAiOiJKV1Q..."
+},
+{
+  "name": "clientId",
+  "type": "string",
+  "required": "false (true if authMode=application)",
+  "description": "The application (client) ID",
   "example": "ab12cd34-e5f6-g7h8-i9j9-ab12cd34e5f6"
 },
 {
   "name": "clientSecret",
   "type": "string",
-  "required": "true",
-  "descrciption": "The client secret",
+  "required": "false (true if authMode=application)",
+  "description": "The client secret",
   "example": "1~A1B~aB12Cd34E5f6aB12cd34E5f6ab~d37cD37"
 },
 {
   "name": "tenantId",
   "type": "string",
-  "required": "true",
-  "descrciption": "The directory (tenant) ID",
+  "required": "false (true if authMode=application)",
+  "description": "The directory (tenant) ID",
   "example": "ab12cd34-e5f6-g7h8-i9j9-ab12cd34e5f6"
 },
 {
   "name": "siteId",
   "type": "string",
   "required": "true",
-  "descrciption": "The ID of the SharePoint site",
+  "description": "The ID of the SharePoint site",
   "example": "namexyz.sharepoint.com,ab12cd34-e5f6-g7h8-i9j9-ab12cd34e5f6,fb12cd34-e5f6-g7h8-i9j9-ab12cd34e5f9"
 },
 {
   "name": "driveId",
   "type": "string",
   "required": "true",
-  "descrciption":" The ID of the drive within the SharePoint site",
+  "description":" The ID of the drive within the SharePoint site",
   "example": "f!aB12Cd34E5f6aB12cd34E5f6abd37cD37aB12Cd34E5f6aB12cd34E5f6abd3712"
 },
 {
   "name": "filePath",
   "type": "string",
   "required": "true",
-  "descrciption": "The path to the file to delete",
+  "description": "The path to the file to delete",
   "example": "cartella_1/cartella_2/file.docx"
 },
 ```
@@ -687,52 +830,66 @@ Search for documents containing at least one of the keywords in the given attrib
 **Input**:
 ```
 {
-  "name": "clientId",
+  "name": "authMode",
   "type": "string",
   "required": "true",
-  "descrciption": "The application (client) ID",
+  "description": "auth mode to use",
+  "example": "application" || "delegated"
+},
+{
+  "name": "accessToken",
+  "type": "string",
+  "required": "false (true if authMode=delegated)",
+  "description": "access token of user login",
+  "example": "eyJ0eXAiOiJKV1Q..."
+},
+{
+  "name": "clientId",
+  "type": "string",
+  "required": "false (true if authMode=application)",
+  "description": "The application (client) ID",
   "example": "ab12cd34-e5f6-g7h8-i9j9-ab12cd34e5f6"
 },
 {
   "name": "clientSecret",
   "type": "string",
-  "required": "true",
-  "descrciption": "The client secret",
+  "required": "false (true if authMode=application)",
+  "description": "The client secret",
   "example": "1~A1B~aB12Cd34E5f6aB12cd34E5f6ab~d37cD37"
 },
 {
   "name": "tenantId",
   "type": "string",
-  "required": "true",
-  "descrciption": "The directory (tenant) ID",
+  "required": "false (true if authMode=application)",
+  "description": "The directory (tenant) ID",
   "example": "ab12cd34-e5f6-g7h8-i9j9-ab12cd34e5f6"
 },
 {
   "name": "siteId",
   "type": "string",
   "required": "true",
-  "descrciption": "The ID of the SharePoint site",
+  "description": "The ID of the SharePoint site",
   "example": "namexyz.sharepoint.com,ab12cd34-e5f6-g7h8-i9j9-ab12cd34e5f6,fb12cd34-e5f6-g7h8-i9j9-ab12cd34e5f9"
 },
 {
   "name": "listId",
   "type": "string",
   "required": "true",
-  "descrciption": "The ID of the SharePoint list to search in",
+  "description": "The ID of the SharePoint list to search in",
   "example": "ab12cd34-e5f6-g7h8-i9j9-ab12cd34e5f6"
 },
 {
   "name": "keywords",
   "type": "Array<string>",
   "required": "true",
-  "descrciption": "Array of keywords to search for",
-  "example": "["word_1", "word_2", "word_3"]"
+  "description": "Array of keywords to search for",
+  "example": ["word_1", "word_2", "word_3"]
 },
 {
   "name": "attributeName",
   "type": "string",
   "required": "true",
-  "descrciption": The document attribute/column to search in",
+  "description": "The document attribute/column to search in",
   "example": "name"
 },
 ```
@@ -759,7 +916,7 @@ Visit [Aisuru.com](https://aisuru.com/) to start building with your agents today
 
 ## 🔒 Security
 
-* Never expose `client secret` publicly
+* Never expose `client secret`, `access token`, and other sensible variables publicly
 * Rotate secrets regularly
 * Grant the minimum required Graph permissions
 
