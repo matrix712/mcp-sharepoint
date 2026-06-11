@@ -13,7 +13,7 @@ import { getDocuments, getDocumentContent, uploadDocument, updateDocumentContent
 const server = new Server(
   {
     name: "mcp-sharepoint",
-    version: "1.0.5",
+    version: "1.1.0",
   },
   {
     capabilities: {
@@ -22,39 +22,26 @@ const server = new Server(
   }
 );
 
-const authParams = {
-  type: "object",
-  description: "Microsoft Entra ID app authentication parameters",
-  properties: {
-    tenantId: {
-      type: "string",
-      description: "The directory (tenant) ID",
-    },
-    clientId: {
-      type: "string",
-      description: "The application (client) ID",
-    },
-    clientSecret: {
-      type: "string",
-      description: "The client secret",
-    },
-  },
-};
-
-const siteDriveParams = {
-  type: "object",
-  description: "SharePoint site and drive identifiers",
-  properties: {
-    siteId: {
-      type: "string",
-      description: "The ID of the SharePoint site",
-    },
-    driveId: {
-      type: "string",
-      description: "The ID of the drive within the SharePoint site",
-    },
-  },
-};
+// Validatore per autenticazione
+function validateAuth(args) {
+  // Retro-compatibilita': le installazioni esistenti (pre-1.1.0) non inviano
+  // authMode e si aspettano il comportamento storico app-only. Default
+  // "application" cosi' la release puo' essere promossa a `latest` senza
+  // rompere le istanze gia' configurate.
+  const authMode = args.authMode || "application";
+  args.authMode = authMode;
+  if (authMode === "application") {
+    if (!args.tenantId?.trim() || !args.clientId?.trim() || !args.clientSecret?.trim()) {
+      throw new Error("Per l'autenticazione applicativa sono richiesti tenantId, clientId e clientSecret");
+    }
+  } else if (authMode === "delegated") {
+    if (!args.accessToken?.trim()) {
+      throw new Error("Per l'autenticazione delegata è richiesto l'accessToken");
+    }
+  } else {
+    throw new Error("authMode deve essere 'application' o 'delegated'");
+  }
+}
 
 // Lista dei tool disponibili
 server.setRequestHandler(ListToolsRequestSchema, async () => {
@@ -66,14 +53,16 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         inputSchema: {
           type: "object",
           properties: {
-            tenantId: {type: "string", description: "The directory (tenant) ID",},
-            clientId: {type: "string", description: "The application (client) ID",},
-            clientSecret: {type: "string", description: "The client secret",},
+            authMode: { type: "string", enum: ["application", "delegated"], description: "Authentication mode, application with secret or delegated with token" },
+            accessToken: { type:"string", description: "The user access token for delegated authentication (required if authMode is 'delegated')" },
+            tenantId: {type: "string", description: "The directory (tenant) ID (required if authMode is 'application')",},
+            clientId: {type: "string", description: "The application (client) ID (required if authMode is 'application')",},
+            clientSecret: {type: "string", description: "The client secret (required if authMode is 'application')",},
             siteId: {type: "string",description: "The ID of the SharePoint site",},
             driveId: {type: "string",description: "The ID of the drive within the SharePoint site",},
             path: { type: "string", description: "The path in SharePoint to retrieve folders from" },
           },
-          required: ["tenantId", "clientId", "clientSecret", "siteId", "driveId", "path"],
+          required: ["siteId", "driveId", "path"],
         },
       },
       {
@@ -82,15 +71,17 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         inputSchema: {
           type: "object",
           properties: {
-            tenantId: {type: "string", description: "The directory (tenant) ID",},
-            clientId: {type: "string", description: "The application (client) ID",},
-            clientSecret: {type: "string", description: "The client secret",},
+            authMode: { type: "string", enum: ["application", "delegated"], description: "Authentication mode, application with secret or delegated with token" },
+            accessToken: { type:"string", description: "The user access token for delegated authentication (required if authMode is 'delegated')" },
+            tenantId: {type: "string", description: "The directory (tenant) ID (required if authMode is 'application')",},
+            clientId: {type: "string", description: "The application (client) ID (required if authMode is 'application')",},
+            clientSecret: {type: "string", description: "The client secret (required if authMode is 'application')",},
             siteId: {type: "string",description: "The ID of the SharePoint site",},
             driveId: {type: "string",description: "The ID of the drive within the SharePoint site",},
             path: { type: "string", description: "The parent path where the folder will be created" },
             folderName: { type: "string", description: "The name of the new folder to create" },
           },
-          required: ["tenantId", "clientId", "clientSecret", "siteId", "driveId", "path", "folderName"],
+          required: ["siteId", "driveId", "path", "folderName"],
         },
       },
       {
@@ -99,14 +90,16 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         inputSchema: {
           type: "object",
           properties: {
-            tenantId: {type: "string", description: "The directory (tenant) ID",},
-            clientId: {type: "string", description: "The application (client) ID",},
-            clientSecret: {type: "string", description: "The client secret",},
+            authMode: { type: "string", enum: ["application", "delegated"], description: "Authentication mode, application with secret or delegated with token" },
+            accessToken: { type:"string", description: "The user access token for delegated authentication (required if authMode is 'delegated')" },
+            tenantId: {type: "string", description: "The directory (tenant) ID (required if authMode is 'application')",},
+            clientId: {type: "string", description: "The application (client) ID (required if authMode is 'application')",},
+            clientSecret: {type: "string", description: "The client secret (required if authMode is 'application')",},
             siteId: {type: "string",description: "The ID of the SharePoint site",},
             driveId: {type: "string",description: "The ID of the drive within the SharePoint site",},
             path: { type: "string", description: "The path of the folder to delete" },
           },
-          required: ["tenantId", "clientId", "clientSecret", "siteId", "driveId", "path"],
+          required: ["siteId", "driveId", "path"],
         },
       },
       {
@@ -115,15 +108,17 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         inputSchema: {
           type: "object",
           properties: {
-            tenantId: {type: "string", description: "The directory (tenant) ID",},
-            clientId: {type: "string", description: "The application (client) ID",},
-            clientSecret: {type: "string", description: "The client secret",},
+            authMode: { type: "string", enum: ["application", "delegated"], description: "Authentication mode, application with secret or delegated with token" },
+            accessToken: { type:"string", description: "The user access token for delegated authentication (required if authMode is 'delegated')" },
+            tenantId: {type: "string", description: "The directory (tenant) ID (required if authMode is 'application')",},
+            clientId: {type: "string", description: "The application (client) ID (required if authMode is 'application')",},
+            clientSecret: {type: "string", description: "The client secret (required if authMode is 'application')",},
             siteId: {type: "string",description: "The ID of the SharePoint site",},
             driveId: {type: "string",description: "The ID of the drive within the SharePoint site",},
             path: { type: "string", description: "The starting path (default: 'root')" },
             maxDepth: { type: "number", description: "Maximum depth to traverse (default: 3)" },
           },
-          required: ["tenantId", "clientId", "clientSecret", "siteId", "driveId", "path"],
+          required: ["siteId", "driveId"],
         },
       },
       {
@@ -132,14 +127,16 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         inputSchema: {
           type: "object",
           properties: {
-            tenantId: {type: "string", description: "The directory (tenant) ID",},
-            clientId: {type: "string", description: "The application (client) ID",},
-            clientSecret: {type: "string", description: "The client secret",},
+            authMode: { type: "string", enum: ["application", "delegated"], description: "Authentication mode, application with secret or delegated with token" },
+            accessToken: { type:"string", description: "The user access token for delegated authentication (required if authMode is 'delegated')" },
+            tenantId: {type: "string", description: "The directory (tenant) ID (required if authMode is 'application')",},
+            clientId: {type: "string", description: "The application (client) ID (required if authMode is 'application')",},
+            clientSecret: {type: "string", description: "The client secret (required if authMode is 'application')",},
             siteId: {type: "string",description: "The ID of the SharePoint site",},
             driveId: {type: "string",description: "The ID of the drive within the SharePoint site",},
             path: { type: "string", description: "The path in SharePoint to retrieve documents from" },
           },
-          required: ["tenantId", "clientId", "clientSecret", "siteId", "driveId", "path"],
+          required: ["siteId", "driveId", "path"],
         },
       },
       {
@@ -148,14 +145,16 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         inputSchema: {
           type: "object",
           properties: {
-            tenantId: {type: "string", description: "The directory (tenant) ID",},
-            clientId: {type: "string", description: "The application (client) ID",},
-            clientSecret: {type: "string", description: "The client secret",},
+            authMode: { type: "string", enum: ["application", "delegated"], description: "Authentication mode, application with secret or delegated with token" },
+            accessToken: { type:"string", description: "The user access token for delegated authentication (required if authMode is 'delegated')" },
+            tenantId: {type: "string", description: "The directory (tenant) ID (required if authMode is 'application')",},
+            clientId: {type: "string", description: "The application (client) ID (required if authMode is 'application')",},
+            clientSecret: {type: "string", description: "The client secret (required if authMode is 'application')",},
             siteId: {type: "string",description: "The ID of the SharePoint site",},
             driveId: {type: "string",description: "The ID of the drive within the SharePoint site",},
             filePath: { type: "string", description: "The path to the file (e.g., 'Cartella_1/file.docx')" },
           },
-          required: ["tenantId", "clientId", "clientSecret", "siteId", "driveId", "filePath"],
+          required: ["siteId", "driveId", "filePath"],
         },
       },
       {
@@ -164,9 +163,11 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         inputSchema: {
           type: "object",
           properties: {
-            tenantId: {type: "string", description: "The directory (tenant) ID",},
-            clientId: {type: "string", description: "The application (client) ID",},
-            clientSecret: {type: "string", description: "The client secret",},
+            authMode: { type: "string", enum: ["application", "delegated"], description: "Authentication mode, application with secret or delegated with token" },
+            accessToken: { type:"string", description: "The user access token for delegated authentication (required if authMode is 'delegated')" },
+            tenantId: {type: "string", description: "The directory (tenant) ID (required if authMode is 'application')",},
+            clientId: {type: "string", description: "The application (client) ID (required if authMode is 'application')",},
+            clientSecret: {type: "string", description: "The client secret (required if authMode is 'application')",},
             siteId: {type: "string",description: "The ID of the SharePoint site",},
             driveId: {type: "string",description: "The ID of the drive within the SharePoint site",},
             filePath: { type: "string", description: "The path where the file will be uploaded (e.g., 'Cartella_1')" },
@@ -174,7 +175,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             contentType: { type: "string", description: "The MIME type of the content (e.g., 'application/pdf')" },
             overwrite: { type: "boolean", description: "Whether to overwrite existing files" },
           },
-          required: ["tenantId", "clientId", "clientSecret", "siteId", "driveId", "filePath", "content"],
+          required: ["siteId", "driveId", "filePath", "content"],
         },
       },
       {
@@ -183,16 +184,18 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         inputSchema: {
           type: "object",
           properties: {
-            tenantId: {type: "string", description: "The directory (tenant) ID",},
-            clientId: {type: "string", description: "The application (client) ID",},
-            clientSecret: {type: "string", description: "The client secret",},
+            authMode: { type: "string", enum: ["application", "delegated"], description: "Authentication mode, application with secret or delegated with token" },
+            accessToken: { type:"string", description: "The user access token for delegated authentication (required if authMode is 'delegated')" },
+            tenantId: {type: "string", description: "The directory (tenant) ID (required if authMode is 'application')",},
+            clientId: {type: "string", description: "The application (client) ID (required if authMode is 'application')",},
+            clientSecret: {type: "string", description: "The client secret (required if authMode is 'application')",},
             siteId: {type: "string",description: "The ID of the SharePoint site",},
             driveId: {type: "string",description: "The ID of the drive within the SharePoint site",},
             filePath: { type: "string", description: "The path to the existing file to update (e.g., 'Cartella_1/file.docx')" },
             content: { type: "string", description: "The new string or base64-encoded content of the file" },
             contentType: { type: "string", description: "The MIME type of the content (e.g., 'application/pdf')" },
           },
-          required: ["tenantId", "clientId", "clientSecret", "siteId", "driveId", "filePath", "content"],
+          required: ["siteId", "driveId", "filePath", "content"],
         },
       },
       {
@@ -201,14 +204,16 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         inputSchema: {
           type: "object",
           properties: {
-            tenantId: {type: "string", description: "The directory (tenant) ID",},
-            clientId: {type: "string", description: "The application (client) ID",},
-            clientSecret: {type: "string", description: "The client secret",},
+            authMode: { type: "string", enum: ["application", "delegated"], description: "Authentication mode, application with secret or delegated with token" },
+            accessToken: { type:"string", description: "The user access token for delegated authentication (required if authMode is 'delegated')" },
+            tenantId: {type: "string", description: "The directory (tenant) ID (required if authMode is 'application')",},
+            clientId: {type: "string", description: "The application (client) ID (required if authMode is 'application')",},
+            clientSecret: {type: "string", description: "The client secret (required if authMode is 'application')",},
             siteId: {type: "string",description: "The ID of the SharePoint site",},
             driveId: {type: "string",description: "The ID of the drive within the SharePoint site",},
             filePath: { type: "string", description: "The path to the file to delete (e.g., 'Cartella_1/file.docx')" },
           },
-          required: ["tenantId", "clientId", "clientSecret", "siteId", "driveId", "filePath"],
+          required: ["siteId", "driveId", "filePath"],
         },
       },
       {
@@ -217,15 +222,17 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         inputSchema: {
           type: "object",
           properties: {
-            tenantId: {type: "string", description: "The directory (tenant) ID",},
-            clientId: {type: "string", description: "The application (client) ID",},
-            clientSecret: {type: "string", description: "The client secret",},
+            authMode: { type: "string", enum: ["application", "delegated"], description: "Authentication mode, application with secret or delegated with token" },
+            accessToken: { type:"string", description: "The user access token for delegated authentication (required if authMode is 'delegated')" },
+            tenantId: {type: "string", description: "The directory (tenant) ID (required if authMode is 'application')",},
+            clientId: {type: "string", description: "The application (client) ID (required if authMode is 'application')",},
+            clientSecret: {type: "string", description: "The client secret (required if authMode is 'application')",},
             siteId: {type: "string",description: "The ID of the SharePoint site",},
             listId: { type: "string", description: "The ID of the SharePoint list to search in" },
             keywords: { type: "array", items: { type: "string" }, description: "Array of keywords to search for" },
             attributeName: { type: "string", description: "The document attribute to search in (e.g., 'name', 'content')" },
           },
-          required: ["tenantId", "clientId", "clientSecret", "siteId", "listId", "keywords", "attributeName"],
+          required: ["siteId", "listId", "keywords", "attributeName"],
         },
       }
     ],
@@ -235,6 +242,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
 // Gestione delle chiamate ai tool
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args } = request.params;
+  validateAuth(args);
 
   switch (name) {
     case "getFolders":
@@ -242,7 +250,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         content: [
           {
             type: "text",
-            text: JSON.stringify(await getFolders(args.tenantId, args.clientId, args.clientSecret, args.siteId, args.driveId, args.path)),
+            text: JSON.stringify(await getFolders(args.authMode, args.accessToken, args.tenantId, args.clientId, args.clientSecret, args.siteId, args.driveId, args.path)),
           },
         ],
       };
@@ -252,7 +260,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         content: [
           {
             type: "text",
-            text: JSON.stringify(await createFolder(args.tenantId, args.clientId, args.clientSecret, args.siteId, args.driveId, args.path, args.folderName)),
+            text: JSON.stringify(await createFolder(args.authMode, args.accessToken, args.tenantId, args.clientId, args.clientSecret, args.siteId, args.driveId, args.path, args.folderName)),
           },
         ],
       };
@@ -262,7 +270,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         content: [
           {
             type: "text",
-            text: JSON.stringify(await deleteFolder(args.tenantId, args.clientId, args.clientSecret, args.siteId, args.driveId, args.path)),
+            text: JSON.stringify(await deleteFolder(args.authMode, args.accessToken, args.tenantId, args.clientId, args.clientSecret, args.siteId, args.driveId, args.path)),
           },
         ],
       };
@@ -272,7 +280,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         content: [
           {
             type: "text",
-            text: JSON.stringify(await getFolderTree(args.tenantId, args.clientId, args.clientSecret, args.siteId, args.driveId, args.path, args.maxDepth)),
+            text: JSON.stringify(await getFolderTree(args.authMode, args.accessToken, args.tenantId, args.clientId, args.clientSecret, args.siteId, args.driveId, args.path, args.maxDepth)),
           },
         ],
       };
@@ -282,7 +290,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         content: [
           {
             type: "text",
-            text: JSON.stringify(await getDocuments(args.tenantId, args.clientId, args.clientSecret, args.siteId, args.driveId, args.path)),
+            text: JSON.stringify(await getDocuments(args.authMode, args.accessToken, args.tenantId, args.clientId, args.clientSecret, args.siteId, args.driveId, args.path)),
           },
         ],
       };
@@ -292,7 +300,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         content: [
           {
             type: "text",
-            text: JSON.stringify(await getDocumentContent(args.tenantId, args.clientId, args.clientSecret, args.siteId, args.driveId, args.filePath)),
+            text: JSON.stringify(await getDocumentContent(args.authMode, args.accessToken, args.tenantId, args.clientId, args.clientSecret, args.siteId, args.driveId, args.filePath)),
           },
         ],
       };
@@ -302,7 +310,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         content: [
           {
             type: "text",
-            text: JSON.stringify(await uploadDocument(args.tenantId, args.clientId, args.clientSecret, args.siteId, args.driveId, args.filePath, args.content, args.contentType, args.overwrite)),
+            text: JSON.stringify(await uploadDocument(args.authMode, args.accessToken, args.tenantId, args.clientId, args.clientSecret, args.siteId, args.driveId, args.filePath, args.content, args.contentType, args.overwrite)),
           },
         ],
       };
@@ -312,7 +320,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         content: [
           {
             type: "text",
-            text: JSON.stringify(await updateDocumentContent(args.tenantId, args.clientId, args.clientSecret, args.siteId, args.driveId, args.filePath, args.content, args.contentType)),
+            text: JSON.stringify(await updateDocumentContent(args.authMode, args.accessToken, args.tenantId, args.clientId, args.clientSecret, args.siteId, args.driveId, args.filePath, args.content, args.contentType)),
           },
         ],
       };
@@ -322,7 +330,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         content: [
           {
             type: "text",
-            text: JSON.stringify(await deleteDocument(args.tenantId, args.clientId, args.clientSecret, args.siteId, args.driveId, args.filePath)),
+            text: JSON.stringify(await deleteDocument(args.authMode, args.accessToken, args.tenantId, args.clientId, args.clientSecret, args.siteId, args.driveId, args.filePath)),
           },
         ],
       };
@@ -332,7 +340,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         content: [
           {
             type: "text",
-            text: JSON.stringify(await searchDocumentsByKeywords(args.tenantId, args.clientId, args.clientSecret, args.siteId, args.listId, args.keywords, args.attributeName)),
+            text: JSON.stringify(await searchDocumentsByKeywords(args.authMode, args.accessToken, args.tenantId, args.clientId, args.clientSecret, args.siteId, args.listId, args.keywords, args.attributeName)),
           },
         ],
       };
