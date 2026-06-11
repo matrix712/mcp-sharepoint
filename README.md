@@ -142,11 +142,11 @@ The authorization is obtained using **app variables** for the Application permis
 **Delegated permissions** refer to the permissions associated with the user that is asking the agent to make the request, identified with a login.  
 These variables must be provided in every request.
 
-### Required auth variable
+### Auth mode variable (optional, backward compatible)
 
 | Variable      | Description                              |
 | ------------- | ---------------------------------------- |
-| `authMode`    | "application" or "delegated"             |
+| `authMode`    | "application" or "delegated". **Optional: defaults to "application"** when omitted, so existing installations keep working unchanged. |
 
 ### Required app variables if authMode=application
 
