@@ -116,7 +116,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             path: { type: "string", description: "The starting path (default: 'root')" },
             maxDepth: { type: "number", description: "Maximum depth to traverse (default: 3)" },
           },
-          required: ["authMode", "siteId", "driveId", "path"],
+          required: ["authMode", "siteId", "driveId"],
         },
       },
       {
