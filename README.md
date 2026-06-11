@@ -127,7 +127,7 @@ curl -s -X GET "https://graph.microsoft.com/v1.0/sites/<SITE_ID>/lists?select=id
 The response is a json, the attribute "value" is an array of json, each json is a different list, you only need the attribute "id"
 
 ## 🧭 Step by step guide to add custom attributes/columns to Sharepoint
-### This is optional, tou can search in the default attributes/columns
+### This is optional, you can search in the default attributes/columns
 1. Go to your Sharepoint website `https://<DOMAIN_NAME>.sharepoint.com/sites/<SITE_NAME>/...`  
 2. On the left menu, click on "Documents"   
 3. On the right, after the columns, click on "+ Add column"  
