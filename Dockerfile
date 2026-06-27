@@ -26,7 +26,7 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /app
 
 # Clone latest project
-RUN git clone https://github.com/memori-ai/mcp-sharepoint.git .
+RUN git clone https://github.com/matrix712/mcp-sharepoint .
 
 # Remove lock file to avoid incompatible dependency resolution
 RUN rm -f package-lock.json
