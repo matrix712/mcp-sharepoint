@@ -34,6 +34,26 @@ For Windows users, always use forward slashes `/`
 * Update an existing document (replace the full content)
 * Delete document
 
+### 🗂️ List management
+
+Full CRUD over SharePoint **lists**, **columns**, **items** and **views** — the
+building blocks for structured data (registers, trackers, calendars) rather than
+just files.
+
+* List all lists in a site (`getLists`)
+* Create a new list, optionally with inline columns (`createList`)
+* Read a list's columns (`getListColumns`)
+* Add a column — text, number, boolean, dateTime, currency, choice, personOrGroup,
+  **lookup** and **calculated** column types (`addColumn`)
+* Query items with `$filter` / `$orderby` / `$top`, fields expanded (`getListItems`)
+* Add, update and delete items (`addListItem`, `updateListItem`, `deleteListItem`)
+* Create saved views with ordered fields and an optional CAML query (`createView`)
+
+> ℹ️ Microsoft Graph cannot create classic list **views**, so `createView` uses
+> the SharePoint REST API. In `application` mode a SharePoint-scoped token is
+> acquired automatically; in `delegated` mode the supplied `accessToken` must be
+> scoped to SharePoint (`https://{tenant}.sharepoint.com/.default`), not Graph.
+
 ---
 
 # 🔐 Prerequisites
